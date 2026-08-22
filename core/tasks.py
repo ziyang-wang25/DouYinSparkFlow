@@ -4,7 +4,6 @@ from utils.config import get_config, get_userData
 from utils import norm
 from core.msg_builder import build_message, build_message_with_openai
 from core.browser import get_browser
-from core.renew_login import is_login_page, renew_login
 from playwright.sync_api import Response
 import time
 import os
@@ -261,7 +260,7 @@ def scroll_and_select_user(page, username, targets):
                 break
 
 
-def do_user_task(browser, username, cookies, targets, unique_id=""):
+def do_user_task(browser, username, cookies, targets):
     context = browser.new_context()  # 每个任务使用独立的上下文
     context.set_default_navigation_timeout(
         config["browserTimeout"]
@@ -291,29 +290,7 @@ def do_user_task(browser, username, cookies, targets, unique_id=""):
 
     time.sleep(5)  # 等待5秒让过可能存在的弹窗
 
-    # --- 登录态检测：若为登录页则执行扫码半自动续期 ---
-    if is_login_page(page):
-        logger.warning(f"账号 {username} 检测到登录页（cookies 已过期），开始扫码续期...")
-        new_cookies = renew_login(page, context, config, unique_id)
-        if new_cookies:
-            logger.info(f"账号 {username} 续期成功，重新注入新 cookies 并刷新页面")
-            context.add_cookies(new_cookies)
-            retry_operation(
-                "刷新抖音网页聊天页面",
-                page.goto,
-                retries=config["taskRetryTimes"],
-                delay=5,
-                url="https://www.douyin.com/chat",
-                wait_until="domcontentloaded",
-            )
-            time.sleep(5)
-        else:
-            context.close()
-            raise RuntimeError(
-                f"账号 {username} 登录续期失败（用户未扫码或推送通道异常），明天将自动重试"
-            )
-    else:
-        logger.info(f"账号 {username} 登录态正常，开始发送消息")
+    logger.info(f"账号 {username} 开始发送消息")
     # 滚动并选择用户
     for username in scroll_and_select_user(page, username, targets):
         logger.info(f"账号 {username} 已选中好友 {username} 发送消息")
@@ -357,10 +334,9 @@ def runTasks():
             cookies = user["cookies"]
             targets = user["targets"]
             username = user.get("username", "未知用户")
-            unique_id = user.get("unique_id", "")
             logger.info(f"开始处理账号 {username}")
             # 创建任务
-            do_user_task(browser, username, cookies, targets, unique_id)
+            do_user_task(browser, username, cookies, targets)
             logger.info(f"账号 {username} 任务完成")
     finally:
         # 关闭浏览器实例

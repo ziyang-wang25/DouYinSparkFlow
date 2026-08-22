@@ -6,5 +6,10 @@ logs/
 .DS_Store
 usersData.json
 .env
-# 本地验证脚本（含敏感凭据，勿提交）
+# 续期功能备份（renew-feature 分支保留），本地残留勿提交
+core/renew_login.py
+utils/serverchan.py
+utils/github_secret.py
+utils/mailer.py
+docs/部署实战全流程.md
 verify/

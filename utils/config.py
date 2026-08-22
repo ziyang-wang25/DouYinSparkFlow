@@ -62,19 +62,6 @@ def get_config():
         ),  # 好友列表加载超时时间，单位毫秒
         "taskRetryTimes": int(os.getenv("TASK_RETRY_TIMES", "3")),  # 任务重试次数
         "logLevel": os.getenv("LOG_LEVEL", "DEBUG"),  # 日志级别
-        # --- 登录续期（扫码半自动） ---
-        "serverchanSendkey": os.getenv("SERVERCHAN_SENDKEY", ""),  # Server酱 SendKey
-        "githubTokenAutoUpdate": os.getenv("GH_TOKEN_AUTOUPDATE", ""),  # 自动更新 Secret 的 fine-grained token
-        "repoOwner": os.getenv("REPO_OWNER", "ziyang-wang25"),
-        "repoName": os.getenv("REPO_NAME", "DouYinSparkFlow"),
-        "githubEnvName": os.getenv("GITHUB_ENV_NAME", "user-data"),
-        "renewWaitMinutes": int(os.getenv("RENEW_WAIT_MINUTES", "25")),  # 扫码续期最长等待分钟
-        # --- 邮件通道（二维码主推送，Server酱 测试号不支持图片） ---
-        "smtpHost": os.getenv("SMTP_HOST", "smtp.qq.com"),
-        "smtpPort": int(os.getenv("SMTP_PORT", "465")),
-        "smtpUser": os.getenv("SMTP_USER", ""),  # 发件邮箱地址
-        "smtpAuth": os.getenv("SMTP_AUTH", ""),  # SMTP 授权码（非登录密码）
-        "mailTo": os.getenv("MAIL_TO", ""),  # 收件邮箱地址
     }
 
     return config
