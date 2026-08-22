@@ -6,6 +6,7 @@ from core.msg_builder import build_message, build_message_with_openai
 from core.browser import get_browser
 from playwright.sync_api import Response
 import time
+import os
 
 config = get_config()
 userData = get_userData()
@@ -107,6 +108,34 @@ def scroll_and_select_user(page, username, targets):
     # [修复] 新增：连续空滚动计数器（滚动后没有发现新好友的次数）
     empty_scroll_count = 0
     MAX_EMPTY_SCROLLS = 10  # 连续10次滚动没有新好友，认为到底了
+
+    # [诊断] 先等待会话列表容器加载，失败时输出诊断信息（URL/标题/正文/截图）
+    logger.info(f"账号 {username} 等待会话列表容器加载...")
+    try:
+        page.wait_for_selector(CONVERSATION_LIST_SELECTOR, timeout=config["browserTimeout"])
+        logger.info(f"账号 {username} 会话列表容器已加载")
+    except Exception as e:
+        logger.error(f"账号 {username} 会话列表容器加载失败: {e}")
+        try:
+            logger.error(f"当前URL: {page.url}")
+            logger.error(f"页面标题: {page.title()}")
+            body_el = page.locator("body")
+            if body_el.count():
+                body_text = body_el.inner_text(timeout=8000)
+                logger.error(f"页面正文(前600字符): {body_text[:600]!r}")
+                logger.error(
+                    f"含'登录'={'登录' in body_text}, 含'验证码'={'验证码' in body_text}, "
+                    f"含'安全验证'={'安全验证' in body_text}, 含'扫码'={'扫码' in body_text}, "
+                    f"含'私信'={'私信' in body_text}"
+                )
+            shot_dir = os.path.join(os.getcwd(), "logs")
+            os.makedirs(shot_dir, exist_ok=True)
+            shot = os.path.join(shot_dir, f"screenshot_{username}.png")
+            page.screenshot(path=shot, full_page=True)
+            logger.error(f"已保存截图: {shot}")
+        except Exception as e2:
+            logger.error(f"诊断信息收集失败: {e2}")
+        raise
 
     while True:
         # 查找所有目标元素
