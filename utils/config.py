@@ -62,6 +62,13 @@ def get_config():
         ),  # 好友列表加载超时时间，单位毫秒
         "taskRetryTimes": int(os.getenv("TASK_RETRY_TIMES", "3")),  # 任务重试次数
         "logLevel": os.getenv("LOG_LEVEL", "DEBUG"),  # 日志级别
+        # --- 登录续期（扫码半自动） ---
+        "serverchanSendkey": os.getenv("SERVERCHAN_SENDKEY", ""),  # Server酱 SendKey
+        "githubTokenAutoUpdate": os.getenv("GH_TOKEN_AUTOUPDATE", ""),  # 自动更新 Secret 的 fine-grained token
+        "repoOwner": os.getenv("REPO_OWNER", "ziyang-wang25"),
+        "repoName": os.getenv("REPO_NAME", "DouYinSparkFlow"),
+        "githubEnvName": os.getenv("GITHUB_ENV_NAME", "user-data"),
+        "renewWaitMinutes": int(os.getenv("RENEW_WAIT_MINUTES", "25")),  # 扫码续期最长等待分钟
     }
 
     return config
