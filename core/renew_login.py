@@ -6,7 +6,7 @@
 3. 成功后提取最新 cookies，清洗后调用 GitHub API 自动更新 Secret
 4. 返回新 cookies 供后续发送使用
 """
-import base64  # noqa: F401  (保留备用)
+import base64
 import json
 import logging
 import time
@@ -20,6 +20,18 @@ logger = setup_logger()  # 复用 "app" logger（与 tasks.py 同实例）
 CONVERSATION_LIST_SELECTOR = ".conversationConversationListwrapper"
 LOGIN_TEXT_MARKERS = ("扫码登录", "登录后免费畅享", "验证码登录")
 LOGIN_URL_MARKERS = ("passport.douyin.com", "sso.douyin.com", "login")
+# 登录成功的标志 cookie（匿名访问只有 ttwid/uid_tt，不会有这两个）
+SESSION_COOKIE_NAMES = ("sessionid", "sid_guard")
+CHAT_URL = "https://www.douyin.com/chat"
+
+
+def _has_session_cookie(context) -> bool:
+    """检测浏览器上下文里是否已出现登录会话 cookie（扫码成功的信号）。"""
+    try:
+        names = {c.get("name") for c in context.cookies()}
+        return bool(names & set(SESSION_COOKIE_NAMES))
+    except Exception:
+        return False
 
 
 def is_login_page(page) -> bool:
@@ -70,10 +82,68 @@ def _clean_cookies(cookies) -> list:
     return cleaned
 
 
-def _push_qrcode(page, config: dict, attempt: int):
-    """截取当前页面（含二维码）：邮件附件为主通道，Server酱 文字通知为辅。"""
-    shot = page.screenshot(type="jpeg", quality=85)  # JPEG 压缩，减小体积
-    logger.info(f"已截取二维码截图（{len(shot)} 字节）")
+def _find_qr_bytes(page, context) -> bytes:
+    """尽力获取二维码原始图片字节（无损）：
+
+    1. 跨 iframe 查找二维码 img/canvas，优先取其原始 src（data URI 或 URL），
+       这是最高质量（浏览器渲染的原始位图，无任何压缩损耗）；
+    2. 找不到 src 时，对该元素做 PNG 无损截图（保留元素原始分辨率）；
+    3. 兜底：整页 PNG 截图。
+    """
+    qr_selectors = [
+        "img[class*='qrcode']",
+        "img[src*='qrcode']",
+        "img[id*='qrcode']",
+        "img[alt*='二维码']",
+        "canvas[class*='qrcode']",
+        "canvas[id*='qrcode']",
+        ".qrcode-img img",
+    ]
+    for frame in page.frames:
+        try:
+            for sel in qr_selectors:
+                loc = frame.locator(sel).first
+                if loc.count() == 0:
+                    continue
+                try:
+                    # a) 原始 src
+                    src = loc.get_attribute("src") or ""
+                    if src.startswith("data:image/"):
+                        b64 = src.split(",", 1)[1]
+                        data = base64.b64decode(b64)
+                        if len(data) > 100:
+                            logger.info(f"取到二维码原始图片（data URI，{len(data)} 字节，selector={sel}）")
+                            return data
+                    elif src.startswith(("http://", "https://", "//")):
+                        url = src if src.startswith("http") else "https:" + src
+                        resp = context.request.get(url, timeout=15000)
+                        if resp.ok:
+                            data = resp.body()
+                            if len(data) > 100:
+                                logger.info(f"取到二维码原始图片（URL，{len(data)} 字节）")
+                                return data
+                except Exception as e:
+                    logger.warning(f"获取二维码 src 失败（{sel}）: {e}")
+                # b) 元素无损截图
+                try:
+                    shot = loc.screenshot(type="png")
+                    if shot and len(shot) > 100:
+                        logger.info(f"二维码元素 PNG 截图（{len(shot)} 字节，selector={sel}）")
+                        return shot
+                except Exception as e:
+                    logger.warning(f"二维码元素截图失败（{sel}）: {e}")
+        except Exception:
+            continue
+    # 兜底：整页无损 PNG
+    shot = page.screenshot(type="png")
+    logger.info(f"未定位到二维码元素，使用整页 PNG 截图（{len(shot)} 字节）")
+    return shot
+
+
+def _push_qrcode(page, context, config: dict, attempt: int):
+    """获取二维码原图（无损）发邮件附件，Server酱 文字通知为辅。"""
+    shot = _find_qr_bytes(page, context)
+    logger.info(f"二维码图片已就绪（{len(shot)} 字节）")
 
     # 1) 邮件附件（主通道，Server酱 测试号通道不支持图片）
     mail_ok = False
@@ -96,7 +166,7 @@ def _push_qrcode(page, config: dict, attempt: int):
             desp = (
                 "### 抖音登录已过期\n\n"
                 f"二维码已发送至邮箱 **{config.get('mailTo')}**，请查收：\n\n"
-                "1. 打开邮箱，保存附件图片 **douyin_qrcode.jpg**\n"
+                "1. 打开邮箱，**保存最新一封**邮件中的附件图片\n"
                 "2. 打开手机 **抖音 App** → 右上角 **扫一扫** → **相册** → 选择该图片\n\n"
                 f"> 当前第 {attempt} 次推送，二维码约 5 分钟有效，过期会自动重推。"
             )
@@ -131,6 +201,7 @@ def renew_login(page, context, config: dict, unique_id: str):
     push_interval = 300  # 每 5 分钟重推一次（抖音二维码约 5-10 分钟过期）
     start = time.time()
     last_push = 0.0
+    last_reload = 0.0
     attempt = 0
 
     time.sleep(5)  # 等待二维码渲染完成
@@ -145,13 +216,23 @@ def renew_login(page, context, config: dict, unique_id: str):
         except Exception:
             pass
 
+        # 扫码成功后登录页不会自动跳转：检测到会话 cookie 后重新导航到聊天页
+        # （每 30 秒最多重导一次，避免在用户尚未扫码时反复刷新）
+        if _has_session_cookie(context) and (time.time() - last_reload) >= 30:
+            last_reload = time.time()
+            logger.info("检测到登录会话 cookie，重新导航到聊天页")
+            try:
+                page.goto(CHAT_URL, wait_until="domcontentloaded", timeout=30000)
+            except Exception as e:
+                logger.warning(f"重新导航失败: {e}")
+
         # 推送二维码（首次立即推，之后每 5 分钟重推）
         now = time.time()
         if now - last_push >= push_interval:
             last_push = now
             attempt += 1
             try:
-                _push_qrcode(page, config, attempt)
+                _push_qrcode(page, context, config, attempt)
                 logger.info(f"已推送续期二维码（第 {attempt} 次）")
             except Exception as e:
                 logger.error(f"推送二维码失败（第 {attempt} 次）: {e}")
