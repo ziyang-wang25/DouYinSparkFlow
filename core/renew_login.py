@@ -88,6 +88,9 @@ def _push_qrcode(page, sendkey: str, attempt: int):
         pic_data_uri="data:image/jpeg;base64," + b64,
         sendkey=sendkey,
     )
+    # Server酱 返回 code==0 才算成功，否则抛异常让上层记录失败
+    if not isinstance(data, dict) or data.get("code") != 0:
+        raise RuntimeError("Server酱推送失败: %s" % (data if data else "空响应"))
     return data
 
 

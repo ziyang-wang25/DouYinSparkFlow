@@ -32,10 +32,11 @@ def send(title: str, desp: str = "", pic_data_uri: str = "", sendkey: str = "", 
     if pic_data_uri:
         params["pic"] = pic_data_uri
 
-    url = "https://sctapi.ftqq.com/%s.send?%s" % (
-        sendkey,
-        urllib.parse.urlencode(params),
-    )
-    req = urllib.request.Request(url)
+    # 必须用 POST 表单提交：base64 图片会让 GET URL 超长，
+    # 导致 Server酱 网关 439/200406 崩溃、图片丢失。
+    url = "https://sctapi.ftqq.com/%s.send" % sendkey
+    data = urllib.parse.urlencode(params).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="POST")
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
