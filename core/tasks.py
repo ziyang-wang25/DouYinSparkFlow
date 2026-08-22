@@ -137,6 +137,19 @@ def scroll_and_select_user(page, username, targets):
             logger.error(f"诊断信息收集失败: {e2}")
         raise
 
+    # [修复] 等待 user/info 接口返回以填充 userIDDict。
+    # 匹配依赖 userIDDict（会话标题/备注名 -> 昵称映射）；domcontentloaded 时接口可能尚未返回，
+    # userIDDict 为空会导致 checkTargetName 只能退化为直接昵称比较而全部匹配失败。
+    wait_start = time.time()
+    while not userIDDict and time.time() - wait_start < 60:
+        time.sleep(1)
+    if userIDDict:
+        logger.info(f"账号 {username} 好友信息接口数据就绪: {len(userIDDict)} 条")
+    else:
+        logger.warning(
+            f"账号 {username} 60秒内未收到好友信息接口数据，退化为直接昵称匹配"
+        )
+
     while True:
         # 查找所有目标元素
         target_elements = page.locator(target_selector).all()
@@ -154,11 +167,12 @@ def scroll_and_select_user(page, username, targets):
                     continue  # 已处理过，跳过
                 found_targets.add(targetName)
 
-                logger.info(f"账号 {username} 找到好友 {targetName}")
+                logger.debug(f"账号 {username} 遍历到会话 {targetName}")
                 
                 targetSymbol = checkTargetName(targetName, targets)
 
                 if targetSymbol:
+                    logger.info(f"账号 {username} 匹配到目标好友: {targetSymbol}")
                     element.click()
                     
                     yield targetSymbol
