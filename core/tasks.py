@@ -154,7 +154,7 @@ def scroll_and_select_user(page, username, targets):
                     continue  # 已处理过，跳过
                 found_targets.add(targetName)
 
-                logger.debug(f"账号 {username} 找到好友 {targetName}")
+                logger.info(f"账号 {username} 找到好友 {targetName}")
                 
                 targetSymbol = checkTargetName(targetName, targets)
 
@@ -167,7 +167,7 @@ def scroll_and_select_user(page, username, targets):
                     if targetSymbol in remaining_targets:
                         remaining_targets.remove(targetSymbol)
                     if len(remaining_targets) == 0:
-                        logger.debug(f"账号 {username} 所有目标好友均已找到，停止搜索")
+                        logger.info(f"账号 {username} 所有目标好友均已找到，停止搜索")
                         return
                     break
             except Exception as e:
@@ -263,20 +263,23 @@ def do_user_task(browser, username, cookies, targets):
     context.add_cookies(cookies)
 
     # 打开抖音网页聊天页面
+    # 使用 domcontentloaded 而不是默认 load：douyin 页面 load 事件可能一直不触发
+    # （长连接/埋点资源），默认模式会每次都等到 120s 超时边缘才返回
     retry_operation(
         "打开抖音网页聊天页面",
         page.goto,
         retries=config["taskRetryTimes"],
         delay=5,
         url="https://www.douyin.com/chat",
+        wait_until="domcontentloaded",
     )
 
     time.sleep(5)  # 等待5秒让过可能存在的弹窗
 
-    logger.debug(f"账号 {username} 开始发送消息")
+    logger.info(f"账号 {username} 开始发送消息")
     # 滚动并选择用户
     for username in scroll_and_select_user(page, username, targets):
-        logger.debug(f"账号 {username} 已选中好友 {username} 发送消息")
+        logger.info(f"账号 {username} 已选中好友 {username} 发送消息")
         # 等待聊天输入框元素加载完成，使用更稳定的属性选择器
         chat_input_selector = CHAT_EDITOR_SELECTOR
         page.wait_for_selector(chat_input_selector, timeout=config["browserTimeout"])
@@ -291,7 +294,7 @@ def do_user_task(browser, username, cookies, targets):
                 chat_input.press("Shift+Enter")  # 模拟 Shift+Enter 插入换行
 
         logger.debug(f"账号 {username} 准备发送消息给好友 {username}：\n\t{message}")
-        logger.debug(f"账号 {username} 给好友 {username} 发送消息完成")
+        logger.info(f"账号 {username} 给好友 {username} 发送消息完成")
         # 模拟按下回车键发送消息
         chat_input.press("Enter")
         time.sleep(2)  # 发送完等待一会儿
