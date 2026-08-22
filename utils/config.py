@@ -69,6 +69,12 @@ def get_config():
         "repoName": os.getenv("REPO_NAME", "DouYinSparkFlow"),
         "githubEnvName": os.getenv("GITHUB_ENV_NAME", "user-data"),
         "renewWaitMinutes": int(os.getenv("RENEW_WAIT_MINUTES", "25")),  # 扫码续期最长等待分钟
+        # --- 邮件通道（二维码主推送，Server酱 测试号不支持图片） ---
+        "smtpHost": os.getenv("SMTP_HOST", "smtp.qq.com"),
+        "smtpPort": int(os.getenv("SMTP_PORT", "465")),
+        "smtpUser": os.getenv("SMTP_USER", ""),  # 发件邮箱地址
+        "smtpAuth": os.getenv("SMTP_AUTH", ""),  # SMTP 授权码（非登录密码）
+        "mailTo": os.getenv("MAIL_TO", ""),  # 收件邮箱地址
     }
 
     return config

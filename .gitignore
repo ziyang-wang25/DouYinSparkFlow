@@ -6,3 +6,5 @@ logs/
 .DS_Store
 usersData.json
 .env
+# 本地验证脚本（含敏感凭据，勿提交）
+verify/
