@@ -498,12 +498,17 @@ def main():
     print("=" * 56)
 
     cfg = load_config()
+    args = sys.argv[1:]
 
-    # 0. 模式选择
-    print("\n请选择模式：")
-    print("  0) 全新部署（在另一台电脑 / 新 GitHub 账号上从零部署，自动 fork + 初始化）")
-    print("  1) 已有仓库操作（添加账号 / 更新 cookies / 查看 / 测试运行）")
-    mode = input("输入数字（默认 0）: ").strip() or "0"
+    # 0. 模式选择（支持命令行参数：python onekey_deploy.py 0|1 [操作号]）
+    mode = args[0] if args and args[0] in ("0", "1") else ""
+    if not mode:
+        print("\n请选择模式：")
+        print("  0) 全新部署（在另一台电脑 / 新 GitHub 账号上从零部署，自动 fork + 初始化）")
+        print("  1) 已有仓库操作（添加账号 / 更新 cookies / 查看 / 测试运行）")
+        mode = input("输入数字（默认 0）: ").strip() or "0"
+    else:
+        print(f"\n已指定模式：{mode}")
 
     if mode == "0":
         fresh_deploy(cfg)
@@ -540,13 +545,17 @@ def main():
         sys.exit(1)
     print(f"  ✓ 仓库 {owner}/{repo} 可访问")
 
-    # 3. 操作选择
-    print("\n请选择操作：")
-    print("  1) 添加新账号（导入 cookies + 配置发送目标）")
-    print("  2) 更新已有账号的 cookies（账号已存在，只换 cookies）")
-    print("  3) 查看当前账号列表（TASKS）")
-    print("  4) 触发测试运行")
-    choice = input("输入数字（默认 1）: ").strip() or "1"
+    # 3. 操作选择（支持命令行参数：python onekey_deploy.py 1 1 = 直接添加新账号）
+    choice = args[1] if len(args) > 1 and args[1] in ("1", "2", "3", "4") else ""
+    if not choice:
+        print("\n请选择操作：")
+        print("  1) 添加新账号（导入 cookies + 配置发送目标）")
+        print("  2) 更新已有账号的 cookies（账号已存在，只换 cookies）")
+        print("  3) 查看当前账号列表（TASKS）")
+        print("  4) 触发测试运行")
+        choice = input("输入数字（默认 1）: ").strip() or "1"
+    else:
+        print(f"\n已指定操作：{choice}")
 
     vars_map, err = get_env_vars(token, owner, repo, env)
     if vars_map is None:
