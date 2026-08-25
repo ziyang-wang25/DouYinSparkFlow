@@ -26,8 +26,12 @@ def handle_response(response: Response):
     只监听你要的那个接口响应
     """
     global userIDDict
+    url = response.url
+    # [诊断] 记录所有 im 相关接口，排查抖音是否改了接口路径
+    if "im/" in url or "user/info" in url:
+        logger.info(f"[接口诊断] HTTP {response.status} {url[:200]}")
     # 精准匹配目标接口 URL
-    if "aweme/v1/web/im/user/info" in response.url:
+    if "aweme/v1/web/im/user/info" in url:
         # print(f"URL: {response.url}")
         # print(f"状态码: {response.status}")
         try:
