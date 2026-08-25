@@ -330,14 +330,21 @@ def runTasks():
                 f"用户: {user.get('username', '未知用户')}, 目标好友: {user['targets']}"
             )
 
+        failed = []
         for user in userData:
             cookies = user["cookies"]
             targets = user["targets"]
             username = user.get("username", "未知用户")
             logger.info(f"开始处理账号 {username}")
             # 创建任务
-            do_user_task(browser, username, cookies, targets)
-            logger.info(f"账号 {username} 任务完成")
+            try:
+                do_user_task(browser, username, cookies, targets)
+                logger.info(f"账号 {username} 任务完成")
+            except Exception as e:
+                logger.error(f"账号 {username} 执行失败，继续下一个: {e}")
+                failed.append(username)
+        if failed:
+            raise RuntimeError(f"以下账号执行失败: {failed}")
     finally:
         # 关闭浏览器实例
         browser.close()
