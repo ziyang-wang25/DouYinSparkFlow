@@ -7,6 +7,7 @@ from core.browser import get_browser
 from playwright.sync_api import Response
 import time
 import os
+import random
 
 config = get_config()
 userData = get_userData()
@@ -223,6 +224,19 @@ def scroll_and_select_user(page, username, targets):
             #     # 不 break，继续去滚动以触发后续内容
 
             # 4. 滚动容器
+            scrollable = page.locator(scrollable_friends_selector)
+            if scrollable.count() == 0:
+                # [修复] 列表容器消失（风控弹窗/页面异常）：
+                # 先短暂等待，仍不可见则刷新页面恢复，避免 120s 干等超时
+                logger.warning(f"账号 {username} 会话列表容器消失，等待 3s 后重试...")
+                time.sleep(3)
+                if page.locator(scrollable_friends_selector).count() == 0:
+                    logger.warning(f"账号 {username} 会话列表容器仍不可见，刷新页面...")
+                    page.reload(wait_until="domcontentloaded")
+                    time.sleep(5)
+                    page.wait_for_selector(
+                        CONVERSATION_LIST_SELECTOR, timeout=30000
+                    )
             scrollable_element = page.locator(
                 scrollable_friends_selector
             ).element_handle()
@@ -311,7 +325,7 @@ def do_user_task(browser, username, cookies, targets):
         logger.info(f"账号 {username} 给好友 {username} 发送消息完成")
         # 模拟按下回车键发送消息
         chat_input.press("Enter")
-        time.sleep(2)  # 发送完等待一会儿
+        time.sleep(random.uniform(3, 6))  # 发送后随机等待 3-6 秒，降低触发风控概率
 
     context.close()  # 任务完成后关闭上下文
 
